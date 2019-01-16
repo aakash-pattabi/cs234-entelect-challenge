@@ -5,10 +5,8 @@ import os
 import pickle
 from datetime import date
 
-FILENAME = "JsonMap.json"
-
 class StateEncapsulator(object):
-	def __init__(self):
+	def __init__(self, player, player_name):
 		self.towers = {
 			"DEFENSE" : 0,
 			"ATTACK" : 1,
@@ -21,6 +19,10 @@ class StateEncapsulator(object):
 			"B" : -1,
 			"BOTH" : 2
 		}
+
+		self.player = player
+		self.player_name = player_name
+		self.filename = "JsonMap.json"
 
 	def __parse_state(self, data):
 		field = data["gameMap"]
@@ -60,7 +62,7 @@ class StateEncapsulator(object):
 
 		return state
 
-	def parse_game(self, game_dir, player, player_name):				
+	def parse_game(self, game_dir):				
 		# print(os.listdir("./Game 1/"))
 
 		states = []
@@ -70,7 +72,7 @@ class StateEncapsulator(object):
 
 		for r in rounds:
 			if "Round" in r:
-				state_path = game_dir + r + "/" + player + " - " + player_name + "/" + FILENAME
+				state_path = game_dir + r + "/" + self.player + " - " + self.player_name + "/" + self.filename
 
 				try: 
 					with open(state_path, "r") as f:
@@ -83,16 +85,15 @@ class StateEncapsulator(object):
 					print(state_path)
 					break 
 		
-		pickle_path = player + "_" + player_name + "_" + str(date.today()) + ".pickle"
+		pickle_path = self.player + "_" + self.player_name + "_" + str(date.today()) + ".pickle"
 		with open(pickle_path, "wb") as pkl:
 			pickle.dump(states, pkl)
 
 ############################################################################################
 
 def main():
-	reader = StateEncapsulator()
-
-	reader.parse_game("./Game 1/", "A", "Guido")	
+	reader = StateEncapsulator("A", "Guido")
+	reader.parse_game("./Game 1/")	
 
 if __name__ == "__main__":
 	main()
