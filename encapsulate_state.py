@@ -1,6 +1,11 @@
 import numpy as np 
 import json 
 import sys
+import os
+import pickle
+from datetime import date
+
+FILENAME = "JsonMap.json"
 
 class StateEncapsulator(object):
 	def __init__(self):
@@ -17,7 +22,7 @@ class StateEncapsulator(object):
 			"BOTH" : 2
 		}
 
-	def parse_state(self, data):
+	def __parse_state(self, data):
 		field = data["gameMap"]
 		nrows = len(field)
 		ncols = len(field[0])
@@ -55,19 +60,39 @@ class StateEncapsulator(object):
 
 		return state
 
+	def parse_game(self, game_dir, player, player_name):				
+		# print(os.listdir("./Game 1/"))
+
+		states = []
+
+		rounds = os.listdir(game_dir)
+		rounds.sort()
+
+		for r in rounds:
+			if "Round" in r:
+				state_path = game_dir + r + "/" + player + " - " + player_name + "/" + FILENAME
+
+				try: 
+					with open(state_path, "r") as f:
+						data = json.load(f)
+					state = self.__parse_state(data)
+					states.append(state)
+
+				except IOError:
+					print("Cannot find round or encapsulate game state:\n")
+					print(state_path)
+					break 
+		
+		pickle_path = player + "_" + player_name + "_" + str(date.today()) + ".pickle"
+		with open(pickle_path, "wb") as pkl:
+			pickle.dump(states, pkl)
+
 ############################################################################################
 
-def main(filename):
+def main():
 	reader = StateEncapsulator()
 
-	try: 
-		with open(filename, "r") as f:
-			data = json.load(f)
-
-		state = reader.parse_state(data)
-
-	except IOError:
-		print("Cannot encapsulate game state")
+	reader.parse_game("./Game 1/", "A", "Guido")	
 
 if __name__ == "__main__":
-	main(sys.argv[1])
+	main()
