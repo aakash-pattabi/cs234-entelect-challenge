@@ -63,8 +63,6 @@ class StateEncapsulator(object):
 		return state
 
 	def parse_game(self, game_dir):				
-		# print(os.listdir("./Game 1/"))
-
 		states = []
 
 		rounds = os.listdir(game_dir)
