@@ -24,7 +24,7 @@ class StateEncapsulator(object):
 		self.player_name = player_name
 		self.filename = "JsonMap.json"
 
-	def __parse_state(self, data):
+	def parse_state(self, data):
 		field = data["gameMap"]
 		nrows = len(field)
 		ncols = len(field[0])
@@ -75,7 +75,7 @@ class StateEncapsulator(object):
 				try: 
 					with open(state_path, "r") as f:
 						data = json.load(f)
-					state = self.__parse_state(data)
+					state = self.parse_state(data)
 					states.append(state)
 
 				except IOError:

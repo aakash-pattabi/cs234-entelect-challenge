@@ -1,0 +1,1 @@
+../starter-bots/python3/RandomBot.py
