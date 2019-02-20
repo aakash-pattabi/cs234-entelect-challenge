@@ -72,8 +72,4 @@ if __name__ == "__main__":
 
 	bot = RandomBot(player, player_name)
 	bot.write_action()
-
-
-
-
-
+	
