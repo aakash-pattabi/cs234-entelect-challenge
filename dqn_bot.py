@@ -53,15 +53,15 @@ class DQNBot(object):
 
 		self.model = Linear(env, config)
 
-
+	#just need to be consistent, should double check here
 	def action_from_vector(self, scalar):
 		x = scalar / 8*6
-		y = scalar % 18
-		action = scalar / 18*
+		y = scalar % 16
+		action = scalar / 16*8
 
 	def _generate_action(self):
 		state = #code to get state from whatever directory
-		best_action, _ = self.get_best_action(state)
+		best_action, _ = self.model.get_best_action(state)
 		action         = self.exp_schedule.get_action(best_action)
 		self.command = action_from_scalar(action)
 
@@ -72,6 +72,7 @@ class DQNBot(object):
 		outfl.close()
 
 	def learn(self):
+		self.model.initialize()                                   
 		num_games_to_train=100000
 		for i in range(num_games_to_train):
 			#run os command "make run" - need to be in right directory
