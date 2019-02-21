@@ -77,6 +77,3 @@ class LSPI(object):
 if __name__ == "__main__":
 	agent = LSPI(1, 0.99, 0.01, "A", "Guido")
 	agent.update_weights_from_batch("./Games")
-
-
-
