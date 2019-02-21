@@ -60,13 +60,16 @@ class LSPI(object):
 		for i in range(len(self.s)):
 			self.update_weights_from_sample(self.s[i], self.a[i], self.r[i], self.sp[i])
 
+	## Actions are stored as triples [x, y, tower] but mapped to scalars
 	def update_weights_from_sample(self, s, a, r, sp):
-		s_a = np.array(list(np.flatten(s)) + a)
-		sp_ap = np.array(list(np.flatten(s)) + self.get_next_action(sp))
+		a = self.action_mapper.action_to_scalar(a)
+		s_a = np.array(list(np.flatten(s)) + [a])
+		sp_ap = np.array(list(np.flatten(sp)) + [self.get_next_action(sp)])
 
 		if self.B is None:
 			self.B = (1.0/self.delta) * np.eye(len(s_a))
 			self.b = np.zeros(len(s_a))
+			self.weights = np.zeros(len(s_a))
 
 		numerator = (self.B @ s_a) @ np.transpose((s_a - self.gamma * sp_ap)) @ self.B
 		denominator = 1 + (np.transpose(s_a - self.gamma * sp_ap) @ self.B @ s_a)
@@ -75,10 +78,16 @@ class LSPI(object):
 
 		self.weights = self.B @ self.b
 
-	## Gotta be a more efficient way to do this... 
+	## Expects as input a 3D tensor representing the state, un-flattened; returns a _scalar_ action
 	def get_next_action(self, sp):
-		pass
+		sp = np.flatten(s)
+		q_values = []
+		for action in range(len(self.action_mapper.num_actions)):
+			sp_ap = np.array(sp + [action])
+			q_values.append(np.dot(sp_ap, self.weights))
 
+		return np.argmax(q_values)
+		
 if __name__ == "__main__":
 	agent = LSPI(1, 0.99, 0.01, "A", "Guido")
 	agent.update_weights_from_batch("./Games")
