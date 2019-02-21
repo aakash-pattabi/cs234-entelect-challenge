@@ -71,7 +71,6 @@ class Linear(DQN):
         #################
         #sampling without replay_buffer
         ################# 
-        # print(np.shape(batch))
         s_batch, a_batch, r_batch, sp_batch = batch
         # done_mask = np.zeros(len(s_batch), dtype=bool)
         # done_mask[-1]=False # assuming batch=game for now
@@ -122,16 +121,34 @@ class Linear(DQN):
         
         self.eval_reward = 0.0
 
+    #this 100% needs to be double-checked
+    def scalar_actions(self, a):
+        s_h, s_w, nchannels = self.config.state_shape
+        a_sc=[]
+        for i in range(len(a)):
+            x, y, ac = a[i]
+            if x+y+ac==-3:
+                a_sc.append(s_h*s_w*6+1) #lat one
+            else:
+                a_sc.append((ac+1)*s_h*s_w + x*s_w + y)
+        return np.array(a_sc)
+
     def train(self, exp_schedule, lr_schedule, batch_dir):  
         t=0
-        dataset = self.agent.ingest_batch(batch_dir)
+        s, a, r, sp = map(np.array, self.agent.ingest_batch(batch_dir))
+        # print(a)
+        a_sc = self.scalar_actions(a)
+        # print(a)
 
         while t < self.config.nsteps_train:
-            batch = random.sample(dataset, self.config.batch_size)
+            idxs = np.random.randint(0, len(s)-1, self.config.batch_size)
+            batch = s[idxs], a_sc[idxs], r[idxs], sp[idxs]
+
             loss, grad = self.train_step(t, lr_schedule.epsilon, batch)
             t+=1
             if t%1000==0:
                 print("Iteration: %d" % t)
+                print("Loss: %f" % loss)
         print("Training Done")
         self.save()
 
@@ -198,10 +215,10 @@ class Linear(DQN):
         ################YOUR CODE HERE (6-15 lines) ##################
         s_h, s_w, nchannels = self.config.state_shape
 
-        self.s = tf.placeholder(tf.uint8, (None, s_h, s_w, nchannels))
+        self.s = tf.placeholder(tf.uint8, (None, nchannels, s_w, s_h))
         self.a = tf.placeholder(tf.int32, (None))
         self.r = tf.placeholder(tf.float32, (None))
-        self.sp = tf.placeholder(tf.uint8, (None, s_h, s_w, nchannels))
+        self.sp = tf.placeholder(tf.uint8, (None, nchannels, s_w, s_h))
         # self.done_mask = tf.placeholder(tf.bool, (None))
         self.lr = tf.placeholder(tf.float32)
         ##############################################################
@@ -241,8 +258,10 @@ class Linear(DQN):
         ################ YOUR CODE HERE - 2-3 lines ################## 
         
         with tf.variable_scope(scope, reuse=reuse):
-            out = tf.layers.dense(tf.layers.flatten(state), num_actions)
-
+            out = tf.layers.flatten(state)
+            for _ in range(self.config.num_layers):
+                out = tf.layers.dense(out, self.config.hidden_size, activation=tf.nn.relu)
+            out = tf.layers.dense(out, num_actions, activation=tf.nn.softmax)
         ##############################################################
         ######################## END YOUR CODE #######################
 
@@ -338,6 +357,7 @@ class Linear(DQN):
         q_samp = self.r+self.config.gamma*tf.reduce_max(target_q, axis=1)#*(1-tf.cast(self.done_mask, tf.float32))
 
         update_locs = tf.one_hot(self.a, num_actions)
+        # update_locs = tf.Print(update_locs, [tf.shape(self.a)])
         q = tf.reduce_sum(tf.multiply(update_locs, q), 1)
 
         self.loss = tf.reduce_mean(tf.squared_difference(q_samp, q))

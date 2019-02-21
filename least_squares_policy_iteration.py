@@ -49,7 +49,7 @@ class LSPI(object):
 			next_states = states[1:] + [states[-1]]
 			self.sp += next_states
 
-		return (self.s, self.a, self.r, self.sp)
+		return self.s, self.a, self.r, self.sp
 
 	def update_weights_from_batch(self, batch_dir):
 		if self.s is None:

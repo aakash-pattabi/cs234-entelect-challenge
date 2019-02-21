@@ -121,6 +121,7 @@ class StateEncapsulator(object):
 			
 			with open(pickle_path, "wb") as pkl:
 				pickle.dump(actions, pkl)
+				
 		return actions
 
 ############################################################################################
