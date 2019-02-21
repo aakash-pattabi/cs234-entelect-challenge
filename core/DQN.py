@@ -6,7 +6,7 @@ from core.deep_q_learning import DQN
 from schedule import LinearExploration, LinearSchedule
 
 from configs.configs import config
-
+from least_squares_policy_iteration import LSPI
 
 class Linear(DQN):
     """
@@ -27,6 +27,9 @@ class Linear(DQN):
         # store hyper params
         self.config = config
         self.env = env
+
+        #just using as util for now
+        self.agent =  LSPI(1, 0.99, 0.01, "A", "Guido")
         # build model
         self.build()
 
@@ -50,7 +53,7 @@ class Linear(DQN):
         return state
 
     #remove dependence on replay_buffer
-    def update_step(self, t, lr):
+    def update_step(self, t, lr, batch_dir):
         """
         Performs an update of parameters by sampling from replay_buffer
 
@@ -65,9 +68,9 @@ class Linear(DQN):
         #################
         #sampling without replay_buffer
         ################# 
-        s_batch, a_batch, r_batch, sp_batch, done_mask_batch = replay_buffer.sample(
-            self.config.batch_size)
-
+        s_batch, a_batch, r_batch, sp_batch = self.agent.ingest_batch(batch_dir)
+        done_mask = np.zeros(len(s_batch), dtype=bool)
+        done_mask[-1]=False # assuming batch=game for now
 
         fd = {
             # inputs
@@ -78,21 +81,21 @@ class Linear(DQN):
             self.done_mask: done_mask_batch,
             self.lr: lr, 
             # extra info
-            self.avg_reward_placeholder: self.avg_reward, 
-            self.max_reward_placeholder: self.max_reward, 
-            self.std_reward_placeholder: self.std_reward, 
-            self.avg_q_placeholder: self.avg_q, 
-            self.max_q_placeholder: self.max_q, 
-            self.std_q_placeholder: self.std_q, 
-            self.eval_reward_placeholder: self.eval_reward, 
+            # self.avg_reward_placeholder: self.avg_reward, 
+            # self.max_reward_placeholder: self.max_reward, 
+            # self.std_reward_placeholder: self.std_reward, 
+            # self.avg_q_placeholder: self.avg_q, 
+            # self.max_q_placeholder: self.max_q, 
+            # self.std_q_placeholder: self.std_q, 
+            # self.eval_reward_placeholder: self.eval_reward, 
         }
 
-        loss_eval, grad_norm_eval, summary, _ = self.sess.run([self.loss, self.grad_norm, 
-                                                 self.merged, self.train_op], feed_dict=fd)
+        loss_eval, grad_norm_eval, _ = self.sess.run([self.loss, self.grad_norm, 
+                                                     self.train_op], feed_dict=fd)
 
 
         # tensorboard stuff
-        self.file_writer.add_summary(summary, t)
+        # self.file_writer.add_summary(summary, t)
         
         return loss_eval, grad_norm_eval
 
@@ -115,16 +118,36 @@ class Linear(DQN):
         
         self.eval_reward = 0.0
 
-    def train(self, exp_schedule):  
+    # def train(self, exp_schedule, lr_schedule, batch_dir):  
+    #     t=0
+    #     # interact with environment
+    #     while t < self.config.nsteps_train:
+    #         total_reward = 0
+    #         while True:
+    #             t += 1
+    #             # replay memory stuff
 
+    #             # chose action according to current Q and exploration
+    #             best_action, q_values = self.get_best_action(q_input)
+    #             action                = exp_schedule.get_action(best_action)
+
+    #             # perform action in env
+    #             new_state, reward, done, info = self.env.step(action)
+
+    #             # perform a training step
+    #             loss_eval, grad_eval = self.train_step(t, lr_schedule.epsilon, batch_dir)
+
+    #     # last words
+    #     print("Training Done")
+    #     self.save()
 
     #removed inequality on schedule
-    def train_step(self, t, lr):
+    def train_step(self, t, lr, batch_dir):
         loss_eval, grad_eval = 0, 0
 
         # perform training step
         if (t % self.config.learning_freq == 0):
-            loss_eval, grad_eval = self.update_step(t, lr)
+            loss_eval, grad_eval = self.update_step(t, lr, batch_dir)
 
         # occasionaly update target network with q network
         if t % self.config.target_update_freq == 0:
@@ -182,10 +205,10 @@ class Linear(DQN):
         ################YOUR CODE HERE (6-15 lines) ##################
         s_h, s_w, nchannels = self.config.state_shape
 
-        self.s = tf.placeholder(tf.uint8, (None, im_h, im_w, nchannels*self.config.state_history))
+        self.s = tf.placeholder(tf.uint8, (None, s_h, s_w, nchannels))
         self.a = tf.placeholder(tf.int32, (None))
         self.r = tf.placeholder(tf.float32, (None))
-        self.sp = tf.placeholder(tf.uint8, (None, im_h, im_w, nchannels*self.config.state_history))
+        self.sp = tf.placeholder(tf.uint8, (None, s_h, s_w, nchannels))
         self.done_mask = tf.placeholder(tf.bool, (None))
         self.lr = tf.placeholder(tf.float32)
         ##############################################################
