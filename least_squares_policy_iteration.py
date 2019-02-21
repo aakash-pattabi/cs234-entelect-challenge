@@ -3,6 +3,7 @@ import os
 import json 
 import random
 from encapsulate_state import StateEncapsulator
+from scalar_to_action import ActionMapper
 
 player_health_indices = {
 	"A" : 1, 
@@ -18,6 +19,7 @@ class LSPI(object):
 
 		self.opponent = "A" if player == "B" else "B"
 		self.reader = StateEncapsulator(player, player_name)
+		self.action_mapper = ActionMapper()
 
 		self.s = None
 		self.a = None
