@@ -34,7 +34,8 @@ class LSPI(object):
 		games = os.listdir(batch_dir)
 		training_batch = random.sample(games, self.n_games_batch)
 		for game_dir in training_batch:
-			self.s += self.reader.parse_states(batch_dir + "/" + game_dir)
+			states = self.reader.parse_states(batch_dir + "/" + game_dir)
+			self.s += states
 			self.a += self.reader.parse_actions(batch_dir + "/" + game_dir)
 			rewards = [0 for i in range(len(states))]
 
@@ -47,6 +48,8 @@ class LSPI(object):
 			self.r += rewards
 			next_states = states[1:] + [states[-1]]
 			self.sp += next_states
+
+		return self.s, self.a, self.r, self.sp
 
 	def update_weights_from_batch(self, batch_dir):
 		if self.s is None:

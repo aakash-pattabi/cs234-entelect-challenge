@@ -1,12 +1,15 @@
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
+import os
+import numpy as np
 
 from utils.env_def import Env
 from core.deep_q_learning import DQN
-from schedule import LinearExploration, LinearSchedule
+from configs.schedule import LinearExploration, LinearSchedule
 
 from configs.configs import config
-
+from least_squares_policy_iteration import LSPI
+import random
 
 class Linear(DQN):
     """
@@ -27,6 +30,9 @@ class Linear(DQN):
         # store hyper params
         self.config = config
         self.env = env
+
+        #just using as util for now
+        self.agent =  LSPI(1, 0.99, 0.01, "A", "Guido")
         # build model
         self.build()
 
@@ -50,7 +56,7 @@ class Linear(DQN):
         return state
 
     #remove dependence on replay_buffer
-    def update_step(self, t, lr):
+    def update_step(self, t, lr, batch):
         """
         Performs an update of parameters by sampling from replay_buffer
 
@@ -65,9 +71,9 @@ class Linear(DQN):
         #################
         #sampling without replay_buffer
         ################# 
-        s_batch, a_batch, r_batch, sp_batch, done_mask_batch = replay_buffer.sample(
-            self.config.batch_size)
-
+        s_batch, a_batch, r_batch, sp_batch = batch
+        # done_mask = np.zeros(len(s_batch), dtype=bool)
+        # done_mask[-1]=False # assuming batch=game for now
 
         fd = {
             # inputs
@@ -75,26 +81,26 @@ class Linear(DQN):
             self.a: a_batch,
             self.r: r_batch,
             self.sp: sp_batch, 
-            self.done_mask: done_mask_batch,
+            # self.done_mask: done_mask_batch,
             self.lr: lr, 
             # extra info
-            self.avg_reward_placeholder: self.avg_reward, 
-            self.max_reward_placeholder: self.max_reward, 
-            self.std_reward_placeholder: self.std_reward, 
-            self.avg_q_placeholder: self.avg_q, 
-            self.max_q_placeholder: self.max_q, 
-            self.std_q_placeholder: self.std_q, 
-            self.eval_reward_placeholder: self.eval_reward, 
+            # self.avg_reward_placeholder: self.avg_reward, 
+            # self.max_reward_placeholder: self.max_reward, 
+            # self.std_reward_placeholder: self.std_reward, 
+            # self.avg_q_placeholder: self.avg_q, 
+            # self.max_q_placeholder: self.max_q, 
+            # self.std_q_placeholder: self.std_q, 
+            # self.eval_reward_placeholder: self.eval_reward, 
         }
 
-        loss_eval, grad_norm_eval, summary, _ = self.sess.run([self.loss, self.grad_norm, 
-                                                 self.merged, self.train_op], feed_dict=fd)
+        loss, grad_norm, _ = self.sess.run([self.loss, self.grad_norm, 
+                                                     self.train_op], feed_dict=fd)
 
 
         # tensorboard stuff
-        self.file_writer.add_summary(summary, t)
+        # self.file_writer.add_summary(summary, t)
         
-        return loss_eval, grad_norm_eval
+        return loss, grad_norm
 
     #Now in QN
     ###########################################
@@ -115,16 +121,43 @@ class Linear(DQN):
         
         self.eval_reward = 0.0
 
-    def train(self, exp_schedule):  
+    #this 100% needs to be double-checked
+    def scalar_actions(self, a):
+        s_h, s_w, nchannels = self.config.state_shape
+        a_sc=[]
+        for i in range(len(a)):
+            x, y, ac = a[i]
+            if x+y+ac==-3:
+                a_sc.append(s_h*s_w*6+1) #lat one
+            else:
+                a_sc.append((ac+1)*s_h*s_w + x*s_w + y)
+        return np.array(a_sc)
 
+    def train(self, exp_schedule, lr_schedule, batch_dir):  
+        t=0
+        s, a, r, sp = map(np.array, self.agent.ingest_batch(batch_dir))
+        # print(a)
+        a_sc = self.scalar_actions(a)
+        # print(a)
+
+        while t < self.config.nsteps_train:
+            idxs = np.random.randint(0, len(s)-1, self.config.batch_size)
+            batch = s[idxs], a_sc[idxs], r[idxs], sp[idxs]
+
+            loss, grad = self.train_step(t, lr_schedule.epsilon, batch)
+            t+=1
+            if t%1000==0:
+                print("Iteration: %d" % t)
+                print("Loss: %f" % loss)
+        print("Training Done")
+        self.save()
 
     #removed inequality on schedule
-    def train_step(self, t, lr):
-        loss_eval, grad_eval = 0, 0
+    def train_step(self, t, lr, batch):
+        loss, grad = 0, 0
 
         # perform training step
-        if (t % self.config.learning_freq == 0):
-            loss_eval, grad_eval = self.update_step(t, lr)
+        loss, grad = self.update_step(t, lr, batch)
 
         # occasionaly update target network with q network
         if t % self.config.target_update_freq == 0:
@@ -134,16 +167,16 @@ class Linear(DQN):
         if (t % self.config.saving_freq == 0):
             self.save()
 
-        return loss_eval, grad_eval
+        return loss, grad
 
     #not necessary if we don't care about eval_reward
 
     def evaluate(self, env=None, num_episodes=None):
+        pass
 
     def run(self, exp_schedule, lr_schedule):
         self.initialize()
-        self.train(exp_schedule, lr_schedule)
-
+        self.train(exp_schedule, lr_schedule, "../2018-TowerDefence/starter-pack/tower-defence-matches")
 
     #From assignment
     def add_placeholders_op(self):
@@ -182,11 +215,11 @@ class Linear(DQN):
         ################YOUR CODE HERE (6-15 lines) ##################
         s_h, s_w, nchannels = self.config.state_shape
 
-        self.s = tf.placeholder(tf.uint8, (None, im_h, im_w, nchannels*self.config.state_history))
+        self.s = tf.placeholder(tf.uint8, (None, nchannels, s_w, s_h))
         self.a = tf.placeholder(tf.int32, (None))
         self.r = tf.placeholder(tf.float32, (None))
-        self.sp = tf.placeholder(tf.uint8, (None, im_h, im_w, nchannels*self.config.state_history))
-        self.done_mask = tf.placeholder(tf.bool, (None))
+        self.sp = tf.placeholder(tf.uint8, (None, nchannels, s_w, s_h))
+        # self.done_mask = tf.placeholder(tf.bool, (None))
         self.lr = tf.placeholder(tf.float32)
         ##############################################################
         ######################## END YOUR CODE #######################
@@ -225,8 +258,10 @@ class Linear(DQN):
         ################ YOUR CODE HERE - 2-3 lines ################## 
         
         with tf.variable_scope(scope, reuse=reuse):
-            out = tf.layers.dense(tf.layers.flatten(state), num_actions)
-
+            out = tf.layers.flatten(state)
+            for _ in range(self.config.num_layers):
+                out = tf.layers.dense(out, self.config.hidden_size, activation=tf.nn.relu)
+            out = tf.layers.dense(out, num_actions, activation=tf.nn.softmax)
         ##############################################################
         ######################## END YOUR CODE #######################
 
@@ -319,9 +354,10 @@ class Linear(DQN):
         """
         ##############################################################
         ##################### YOUR CODE HERE - 4-5 lines #############
-        q_samp = self.r+self.config.gamma*tf.reduce_max(target_q, axis=1)*(1-tf.cast(self.done_mask, tf.float32))
+        q_samp = self.r+self.config.gamma*tf.reduce_max(target_q, axis=1)#*(1-tf.cast(self.done_mask, tf.float32))
 
         update_locs = tf.one_hot(self.a, num_actions)
+        # update_locs = tf.Print(update_locs, [tf.shape(self.a)])
         q = tf.reduce_sum(tf.multiply(update_locs, q), 1)
 
         self.loss = tf.reduce_mean(tf.squared_difference(q_samp, q))

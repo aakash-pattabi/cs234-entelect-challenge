@@ -15,17 +15,17 @@ class config():
     # model and training config
     num_episodes_test = 20
     grad_clip         = True
-    clip_val          = 10
-    saving_freq       = 5000
+    clip_val          = 1
+    saving_freq       = 500
     log_freq          = 50
     eval_freq         = 1000
     soft_epsilon      = 0
 
-    # hyper params
+    #hyper params
     nsteps_train       = 10000
-    batch_size         = 32
+    batch_size         = 5
     buffer_size        = 1000
-    target_update_freq = 500
+    target_update_freq = 100
     gamma              = 0.99
     learning_freq      = 4
     state_history      = 4
@@ -38,3 +38,6 @@ class config():
     learning_start     = 200
 
     state_shape = (16, 8, 4)
+
+    num_layers         = 2
+    hidden_size        = 300

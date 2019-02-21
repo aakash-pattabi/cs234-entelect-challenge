@@ -72,7 +72,7 @@ class StateEncapsulator(object):
 
 		for r in rounds:
 			if "Round" in r:
-				state_path = game_dir + r + "/" + self.player + " - " + self.player_name + "/" + self.state_filename
+				state_path = game_dir + "/" + r + "/" + self.player + " - " + self.player_name + "/" + self.state_filename
 
 				try: 
 					with open(state_path, "r") as f:
@@ -100,26 +100,29 @@ class StateEncapsulator(object):
 
 		for r in rounds:
 			if "Round" in r:
-				action_path = game_dir + r + "/" + self.player + " - " + self.player_name + "/" + self.action_filename
+				action_path = game_dir + "/" + r + "/" + self.player + " - " + self.player_name + "/" + self.action_filename
 
 				try:
 					with open(action_path, "r") as f:
 						data = f.readlines()
-					if data[0] == "No command":
-						command = self.no_command_action
-					else:
-						command = list(map(int, data[0].split(",")))
-					actions.append(command)
-
+					if len(data)>0:
+						if data[0] == "No Command":
+							command = self.no_command_action
+						else:
+							command = list(map(int, data[0].split(",")))
+						actions.append(command)
 				except IOError:
 					print("Cannot find round or encapsulate game actions:\n")
 					print(action_path)
 					break 
-		
+
 		if write:
 			pickle_path = self.player + "_" + self.player_name + "_Actions_" + str(date.today()) + ".pickle"
+			
 			with open(pickle_path, "wb") as pkl:
-				pickle.dump(states, pkl)
+				pickle.dump(actions, pkl)
+				
+		return actions
 
 ############################################################################################
 

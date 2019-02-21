@@ -1,5 +1,5 @@
 import numpy as np
-from utils.test_env import EnvTest
+from utils.env_def import Env
 
 class LinearSchedule(object):
     def __init__(self, eps_begin, eps_end, nsteps):
