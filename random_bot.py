@@ -24,7 +24,7 @@ class RandomBot(object):
 			"NOTHING" : -1
 		}
 		self.costs = {
-			"DEFENSE" : 30, c
+			"DEFENSE" : 30,
 			"ATTACK" : 30, 
 			"ENERGY" : 20, 
 			"TESLA" : 300,
@@ -52,7 +52,6 @@ class RandomBot(object):
 			return 
 
 		location = location_candidates[np.random.choice(range(len(location_candidates)))]
-
 		command = str(location[1]) + "," + str(location[0]) + "," + str(action)
 		self.command = command
 
