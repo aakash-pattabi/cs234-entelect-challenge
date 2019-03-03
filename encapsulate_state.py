@@ -128,7 +128,8 @@ class StateEncapsulator(object):
 
 def main():
 	reader = StateEncapsulator("A", "Guido")
-	reader.parse_states("./Game 1/")	
+	states = reader.parse_states("./Game 1/")
+	print(states[-1])
 
 if __name__ == "__main__":
 	main()

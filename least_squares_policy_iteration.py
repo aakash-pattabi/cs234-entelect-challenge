@@ -4,22 +4,24 @@ import json
 import random
 from encapsulate_state import StateEncapsulator
 from scalar_to_action import ActionMapper
+from basis_functions import linear_basis, interactive_basis, BASIS_MAP
 import pickle
 import argparse
 import matplotlib.pyplot as plt
 
 player_health_indices = {
-	"A" : 1, 
-	"B" : 9
-}
-
-player_score_indices = {
 	"A" : 2, 
 	"B" : 10
 }
 
+player_score_indices = {
+	"A" : 4, 
+	"B" : 12
+}
+
 class LSPI(object):
-	def __init__(self, n_games_batch, gamma, epsilon, player, player_name, delta = 0.001, reward_for_win = True):
+	def __init__(self, n_games_batch, gamma, epsilon, player, player_name, 
+				 delta = 0.001, basis = linear_basis, reward_for_win = True):
 		self.n_games_batch = n_games_batch
 		self.gamma = gamma
 		self.epsilon = epsilon
@@ -38,6 +40,7 @@ class LSPI(object):
 		self.b = None
 		self.B = None
 		self.weights = None
+		self.basis = basis
 
 		self.reward_for_win = reward_for_win
 
@@ -80,6 +83,7 @@ class LSPI(object):
 	def __update_weights_from_sample(self, s, a, r, sp):
 		a = self.action_mapper.action_to_scalar(a)
 		s_a = np.array(list(s.flatten()) + [a])
+		s_a = self.basis(s_a)
 
 		if self.B is None:
 			self.B = (1.0 / self.delta) * np.eye(len(s_a))
@@ -87,12 +91,13 @@ class LSPI(object):
 			self.weights = np.zeros(len(s_a))
 
 		sp_ap = np.array(list(sp.flatten()) + [self.__get_next_action(sp)])
+		sp_ap = self.basis(sp_ap)
 
 		# Should the last "*" be a "*" or an "@"?
 		numerator = (self.B @ s_a) @ np.transpose(s_a - (self.gamma * sp_ap)) * self.B
 		denominator = 1 + (np.transpose(s_a - self.gamma * sp_ap) @ self.B @ s_a)
 		self.B = self.B - ((1.0*numerator)/denominator)
-		self.b = self.b + r*s_a
+		self.b = self.b + (r * s_a)
 		self.weights = self.B @ self.b
 
 	# Expects as input a 3D tensor representing the state, un-flattened; returns a _scalar_ action
@@ -101,6 +106,7 @@ class LSPI(object):
 		q_values = []
 		for action in range(self.action_mapper.num_actions):
 			sp_ap = np.array(list(sp) + [action])
+			sp_ap = self.basis(sp_ap)
 			q_values.append(np.dot(sp_ap, self.weights))
 
 		return np.argmax(q_values)
@@ -134,23 +140,25 @@ class LSPI(object):
 
 		with open(weights_filename, "wb") as pkl:
 			pickle.dump(self.weights, pkl)
-			print(self.weights)
 		
 def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--batch_dir", type = str)
 	parser.add_argument("--weights_filename", type = str)
-	parser.add_argument("n_games_batch", nargs = "?", default = 1, type = int)
-	parser.add_argument("gamma", nargs = "?", default = 0.99, type = float)
-	parser.add_argument("epsilon", nargs = "?", default = 1e-5, type = float)
+	parser.add_argument("--n_games_batch", nargs = "?", default = 1, type = int)
+	parser.add_argument("--gamma", nargs = "?", default = 0.95, type = float)
+	parser.add_argument("--epsilon", nargs = "?", default = 1e-4, type = float)
 	parser.add_argument("player", nargs = "?", default = "A", type = str)
 	parser.add_argument("name", nargs = "?", default = "Guido", type = str)
 	parser.add_argument("delta", nargs = "?", default = 0.001, type = float)
+	parser.add_argument("--basis", nargs = "?", default = "linear", type = str)
 	parser.add_argument("--reward_for_win", dest = "reward_for_win", action = "store_true")
-	parser.add_argument("--min_iters", nargs = "?", const = 1, type = int)
+	parser.add_argument("--min_iters", nargs = "?", default = 1, type = int)
 	args = parser.parse_args()
 
-	agent = LSPI(args.n_games_batch, args.gamma, args.epsilon, args.player, args.name, reward_for_win = args.reward_for_win)
+	basis = BASIS_MAP[args.basis]
+	agent = LSPI(args.n_games_batch, args.gamma, args.epsilon, args.player, args.name, 
+				 basis = basis, reward_for_win = args.reward_for_win)
 	agent.train(args.batch_dir, args.weights_filename, args.min_iters)
 
 if __name__ == "__main__":

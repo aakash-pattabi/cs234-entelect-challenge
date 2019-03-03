@@ -5,7 +5,7 @@ from encapsulate_state import StateEncapsulator
 from scalar_to_action import ActionMapper
 import pickle
 
-STATE_FILENAME = "state.json"
+STATE_FILENAME = "state3.json"
 CONFIG_FILENAME = "bot.json"
 WEIGHTS_FILENAME = "weights.pkl"
 DO_NOTHING_ACTION = [-1, -1, -1]
