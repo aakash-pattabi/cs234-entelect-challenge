@@ -4,6 +4,8 @@ import random
 from encapsulate_state import StateEncapsulator
 from scalar_to_action import ActionMapper
 import pickle
+from basis_functions import identity_basis, interactive_basis, actions_only_basis, actions_cubic_basis, BASIS_MAP
+import matplotlib.pyplot as plt
 
 STATE_FILENAME = "state3.json"
 CONFIG_FILENAME = "bot.json"
@@ -11,7 +13,7 @@ WEIGHTS_FILENAME = "weights.pkl"
 DO_NOTHING_ACTION = [-1, -1, -1]
 
 class LinearBot(object):
-		def __init__(self, player, player_name, weights_file):
+		def __init__(self, player, player_name, weights_file, basis):
 			self.reader = StateEncapsulator(player, player_name)
 
 			with open(STATE_FILENAME, "r") as f:
@@ -22,6 +24,7 @@ class LinearBot(object):
 				self.weights = pickle.load(pkl)
 
 			self.action_mapper = ActionMapper()
+			self.basis = basis
 			self.command = ""
 
 		# Expects as input a 3D tensor representing the state, un-flattened; returns a _scalar_ action
@@ -30,7 +33,11 @@ class LinearBot(object):
 			q_values = []
 			for action in range(self.action_mapper.num_actions):
 				s_a = np.array(list(s) + [action])
+				s_a = self.basis(s_a)
 				q_values.append(np.dot(s_a, self.weights))
+
+			plt.plot(range(len(q_values)), q_values)
+			plt.show()
 
 			return np.argmax(q_values)
 
@@ -50,6 +57,6 @@ if __name__ == "__main__":
 		player_name = data["nickName"]
 		player = "A" if player_name == "Guido" else "B"
 
-	bot = LinearBot(player, player_name, WEIGHTS_FILENAME)
+	bot = LinearBot(player, player_name, WEIGHTS_FILENAME, actions_cubic_basis)
 	bot.write_action()
 	

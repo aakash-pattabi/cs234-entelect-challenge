@@ -4,7 +4,7 @@ import json
 import random
 from encapsulate_state import StateEncapsulator
 from scalar_to_action import ActionMapper
-from basis_functions import linear_basis, interactive_basis, BASIS_MAP
+from basis_functions import identity_basis, interactive_basis, actions_only_basis, actions_cubic_basis, BASIS_MAP
 import pickle
 import argparse
 import matplotlib.pyplot as plt
@@ -21,7 +21,7 @@ player_score_indices = {
 
 class LSPI(object):
 	def __init__(self, n_games_batch, gamma, epsilon, player, player_name, 
-				 delta = 0.001, basis = linear_basis, reward_for_win = True):
+				 delta = 0.001, basis = identity_basis, reward_for_win = True):
 		self.n_games_batch = n_games_batch
 		self.gamma = gamma
 		self.epsilon = epsilon
@@ -129,6 +129,7 @@ class LSPI(object):
 				n_iters += 1
 				norms.append(norm)
 				print("Iteration {} | Delta in norm {}".format(n_iters, norms[-1])) 
+
 		except KeyboardInterrupt:
 			pass
 
