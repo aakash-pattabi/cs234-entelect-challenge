@@ -7,7 +7,7 @@ class config():
     high             = 255.
 
     # output config
-    output_path  = "results/q2_linear/"
+    output_path  = "results/DQN_target_exp-rep/"
     model_output = output_path + "model.weights/"
     log_path     = output_path + "log.txt"
     plot_output  = output_path + "scores.png"
@@ -15,29 +15,28 @@ class config():
     # model and training config
     num_episodes_test = 20
     grad_clip         = True
-    clip_val          = 1
-    saving_freq       = 500
-    log_freq          = 50
+    clip_val          = 10
+    saving_freq       = 250000
+    log_freq          = 5000
     eval_freq         = 1000
     soft_epsilon      = 0
 
     #hyper params
-    nsteps_train       = 10000
-    batch_size         = 5
-    buffer_size        = 1000
-    target_update_freq = 100
+    nsteps_train       = 5000000
+    batch_size         = 32
+    # buffer_size        = 1000
+    target_update_freq = 10000    
     gamma              = 0.99
-    learning_freq      = 4
-    state_history      = 4
-    lr_begin           = 0.005
-    lr_end             = 0.001
+    # learning_freq      = 4
+    # state_history      = 4
+    lr_begin           = 0.00025
+    lr_end             = 0.00005
     lr_nsteps          = nsteps_train/2
     eps_begin          = 1
     eps_end            = 0.01
     eps_nsteps         = nsteps_train/2
-    learning_start     = 200
+    # learning_start     = 200
 
     state_shape = (16, 8, 4)
-
-    num_layers         = 2
-    hidden_size        = 300
+    num_layers         = 3
+    hidden_size        = 640

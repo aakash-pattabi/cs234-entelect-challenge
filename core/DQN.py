@@ -10,6 +10,7 @@ from configs.schedule import LinearExploration, LinearSchedule
 from configs.configs import config
 from least_squares_policy_iteration import LSPI
 import random
+from scalar_to_action import ActionMapper
 
 class Linear(DQN):
     """
@@ -32,7 +33,8 @@ class Linear(DQN):
         self.env = env
 
         #just using as util for now
-        self.agent =  LSPI(1, 0.99, 0.01, "A", "Guido")
+        self.agent =  LSPI(self.config.batch_size, 0.99, 0.01, "A", "Guido")
+        self.action_mapper = ActionMapper()
         # build model
         self.build()
 
@@ -121,34 +123,37 @@ class Linear(DQN):
         
         self.eval_reward = 0.0
 
-    #this 100% needs to be double-checked
     def scalar_actions(self, a):
-        s_h, s_w, nchannels = self.config.state_shape
         a_sc=[]
+        # print(a)
         for i in range(len(a)):
-            x, y, ac = a[i]
-            if x+y+ac==-3:
-                a_sc.append(s_h*s_w*6+1) #lat one
-            else:
-                a_sc.append((ac+1)*s_h*s_w + x*s_w + y)
+            # print(str(i)+" "+str(self.action_mapper.action_to_scalar(a[i])))
+                
+            a_sc.append(self.action_mapper.action_to_scalar(a[i]))
         return np.array(a_sc)
 
     def train(self, exp_schedule, lr_schedule, batch_dir):  
         t=0
-        s, a, r, sp = map(np.array, self.agent.ingest_batch(batch_dir))
-        # print(a)
-        a_sc = self.scalar_actions(a)
-        # print(a)
 
+        print("Loading Data")
+        s, a, r, sp = map(np.array, self.agent.ingest_batch(batch_dir))
+        print("Num Training Examples: " + str(len(s)))
+        a_sc = self.scalar_actions(a)
+
+        print("Starting Training")
         while t < self.config.nsteps_train:
+            
+            #experience replay here
             idxs = np.random.randint(0, len(s)-1, self.config.batch_size)
             batch = s[idxs], a_sc[idxs], r[idxs], sp[idxs]
-
+            # batch = s, a_sc, r, sp
+            
             loss, grad = self.train_step(t, lr_schedule.epsilon, batch)
             t+=1
-            if t%1000==0:
+            if t%self.config.log_freq==0:
                 print("Iteration: %d" % t)
                 print("Loss: %f" % loss)
+                print("Grad: %f" % grad)
         print("Training Done")
         self.save()
 
@@ -174,9 +179,9 @@ class Linear(DQN):
     def evaluate(self, env=None, num_episodes=None):
         pass
 
-    def run(self, exp_schedule, lr_schedule):
+    def run(self, exp_schedule, lr_schedule, data_dir):
         self.initialize()
-        self.train(exp_schedule, lr_schedule, "../2018-TowerDefence/starter-pack/tower-defence-matches")
+        self.train(exp_schedule, lr_schedule, data_dir)
 
     #From assignment
     def add_placeholders_op(self):
@@ -258,10 +263,16 @@ class Linear(DQN):
         ################ YOUR CODE HERE - 2-3 lines ################## 
         
         with tf.variable_scope(scope, reuse=reuse):
-            out = tf.layers.flatten(state)
-            for _ in range(self.config.num_layers):
-                out = tf.layers.dense(out, self.config.hidden_size, activation=tf.nn.relu)
-            out = tf.layers.dense(out, num_actions, activation=tf.nn.softmax)
+            # out = tf.layers.flatten(state)
+            # for _ in range(self.config.num_layers):
+            #     out = tf.layers.dense(out, self.config.hidden_size, activation=tf.nn.relu)
+            # out = tf.layers.dense(out, num_actions)
+            out = tf.layers.conv2d(state, filters=32, kernel_size=4, strides=4, padding="same", activation=tf.nn.relu)
+            out = tf.layers.conv2d(out, filters=64, kernel_size=4, strides=2, padding="same", activation=tf.nn.relu)
+            out = tf.layers.conv2d(out, filters=64, kernel_size=3, strides=1, padding="same", activation=tf.nn.relu)
+            out = tf.layers.flatten(out)
+            out = tf.layers.dense(out, 512, activation=tf.nn.relu)
+            out = tf.layers.dense(out, num_actions)
         ##############################################################
         ######################## END YOUR CODE #######################
 
@@ -421,4 +432,5 @@ if __name__ == '__main__':
             config.lr_nsteps)
 
     model = Linear(env, config)
-    model.run(exp_schedule, lr_schedule)
+    data_dir = "../2018-TowerDefence/starter-pack/tower-defence-matches"
+    model.run(exp_schedule, lr_schedule, data_dir)

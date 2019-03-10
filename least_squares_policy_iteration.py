@@ -48,11 +48,17 @@ class LSPI(object):
 		self.s, self.a, self.r, self.sp = [], [], [], []
 
 		games = os.listdir(batch_dir)
-		training_batch = random.sample(games, self.n_games_batch)
-		for game_dir in training_batch:
+		# training_batch = random.sample(games, self.n_games_batch)
+		for game_dir in games:
+
 			states = self.reader.parse_states(batch_dir + "/" + game_dir)
+			actions = self.reader.parse_actions(batch_dir + "/" + game_dir)
+			if(len(states)>len(actions)+1):
+				continue
+			elif(len(states)==len(actions)+1):
+				actions.append(actions[-1])
 			self.s += states
-			self.a += self.reader.parse_actions(batch_dir + "/" + game_dir)
+			self.a += actions
 
 			if self.reward_for_win:
 				# Rewards are defined to be 0 for all non-terminal states and 1 only in terminal states where
@@ -156,7 +162,7 @@ def main():
 	parser.add_argument("--reward_for_win", dest = "reward_for_win", action = "store_true")
 	parser.add_argument("--min_iters", nargs = "?", default = 1, type = int)
 	args = parser.parse_args()
-
+	
 	basis = BASIS_MAP[args.basis]
 	agent = LSPI(args.n_games_batch, args.gamma, args.epsilon, args.player, args.name, 
 				 basis = basis, reward_for_win = args.reward_for_win)
