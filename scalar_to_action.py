@@ -6,6 +6,7 @@ class ActionMapper(object):
 		self.triple_to_scalar = None
 		self.num_actions = None
 		self.no_command_action = [-1, -1, -1]
+		self.triples = None
 		self.init_action_maps()
 
 	def init_action_maps(self):
@@ -26,6 +27,7 @@ class ActionMapper(object):
 		triples = np.reshape(np.tile(doubles, len(actions)), (self.num_actions, 2))
 		triple_actions = np.expand_dims(np.tile(actions, len(grid_rows)*len(grid_cols)), 1)
 		triples = np.hstack((triples, triple_actions))
+		self.triples = [tuple(triples[i]) for i in range(triples.shape[0])]
 		self.scalar_to_triple = {i : triples[i] for i in range(triples.shape[0])}
 		self.scalar_to_triple[-1] = self.no_command_action
 		self.triple_to_scalar = {tuple(value) : key for key, value in self.scalar_to_triple.items()}

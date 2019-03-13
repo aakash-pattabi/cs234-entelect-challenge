@@ -27,23 +27,19 @@ class LinearBot(object):
 			self.basis = basis
 			self.command = ""
 
-		# Expects as input a 3D tensor representing the state, un-flattened; returns a _scalar_ action
-		def __get_next_action(self, s):
-			s = s.flatten()
+		# Expects as input a 3D tensor representing the state, un-flattened; returns a list action
+		def __get_next_action(self, sp):
+			sp = sp.flatten()
 			q_values = []
-			for action in range(self.action_mapper.num_actions):
-				s_a = np.array(list(s) + [action])
-				s_a = self.basis(s_a)
-				q_values.append(np.dot(s_a, self.weights))
+			for action in self.action_mapper.triples:
+				sp_ap = np.array(list(sp) + list(action))
+				sp_ap = self.basis(sp_ap)
+				q_values.append(np.dot(sp_ap, self.weights))
 
-			plt.plot(range(len(q_values)), q_values)
-			plt.show()
-
-			return np.argmax(q_values)
+			return list(self.action_mapper.triples[np.argmax(q_values)])
 
 		def write_action(self):
-			action_scalar = self.__get_next_action(self.state)
-			action_list = self.action_mapper.scalar_to_action(action_scalar)
+			action_list = self.__get_next_action(self.state)
 			if (not np.all(action_list == DO_NOTHING_ACTION)) and action_list[2] != -1:
 				self.command = str(action_list[0]) + "," + str(action_list[1]) + "," + str(action_list[2])
 			with open("command.txt", "w") as outfl:

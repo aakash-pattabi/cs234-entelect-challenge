@@ -61,6 +61,9 @@ class LSPI(object):
 				opponent_health = states[-1][0][0, player_health_indices[self.opponent]]
 				if opponent_health == 0:
 					rewards[-1] = 1
+				else:
+					rewards[-1] = -1
+
 			else:
 				# Rewards are defined to be the change in score from one state to the next
 				scores = [state[0][0, player_score_indices[self.player]] for state in states]
@@ -79,10 +82,8 @@ class LSPI(object):
 		for i in range(len(self.a)):
 			self.__update_weights_from_sample(self.s[i], self.a[i], self.r[i], self.sp[i])
 
-	# Actions are stored as triples [x, y, tower] but mapped to scalars
 	def __update_weights_from_sample(self, s, a, r, sp):
-		a = self.action_mapper.action_to_scalar(a)
-		s_a = np.array(list(s.flatten()) + [a])
+		s_a = np.array(list(s.flatten()) + list(a))
 		s_a = self.basis(s_a)
 
 		if self.B is None:
@@ -104,12 +105,12 @@ class LSPI(object):
 	def __get_next_action(self, sp):
 		sp = sp.flatten()
 		q_values = []
-		for action in range(self.action_mapper.num_actions):
-			sp_ap = np.array(list(sp) + [action])
+		for action in self.action_mapper.triples:
+			sp_ap = np.array(list(sp) + list(action))
 			sp_ap = self.basis(sp_ap)
 			q_values.append(np.dot(sp_ap, self.weights))
 
-		return np.argmax(q_values)
+		return list(self.action_mapper.triples[np.argmax(q_values)])
 
 	def train(self, batch_dir, weights_filename, min_iters):
 		self.ingest_batch(batch_dir)
