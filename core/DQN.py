@@ -7,10 +7,11 @@ from utils.env_def import Env
 from core.deep_q_learning import DQN
 from configs.schedule import LinearExploration, LinearSchedule
 
-from configs.configs import config
+from configs.test_config import config
 from least_squares_policy_iteration import LSPI
 import random
 from scalar_to_action import ActionMapper
+from collections import deque
 
 class Linear(DQN):
     """
@@ -33,6 +34,7 @@ class Linear(DQN):
         self.env = env
 
         #just using as util for now
+        #self.agent =  LSPI(self.config.batch_size, 0.99, 0.01, "A", "Guido", reward_for_win=False)
         self.agent =  LSPI(self.config.batch_size, 0.99, 0.01, "A", "Guido")
         self.action_mapper = ActionMapper()
         # build model
@@ -73,7 +75,7 @@ class Linear(DQN):
         #################
         #sampling without replay_buffer
         ################# 
-        s_batch, a_batch, r_batch, sp_batch = batch
+        s_batch, a_batch, r_batch, sp_batch, done_mask_batch = batch
         # done_mask = np.zeros(len(s_batch), dtype=bool)
         # done_mask[-1]=False # assuming batch=game for now
 
@@ -83,7 +85,7 @@ class Linear(DQN):
             self.a: a_batch,
             self.r: r_batch,
             self.sp: sp_batch, 
-            # self.done_mask: done_mask_batch,
+            self.done_mask: done_mask_batch,
             self.lr: lr, 
             # extra info
             # self.avg_reward_placeholder: self.avg_reward, 
@@ -104,6 +106,8 @@ class Linear(DQN):
         
         return loss, grad_norm
 
+    def model_init(self, sess):
+        self.sess = sess
     #Now in QN
     ###########################################
     #Need to update to reflect how we're representing action vector
@@ -113,15 +117,29 @@ class Linear(DQN):
         """
         Defines extra attributes for tensorboard
         """
-        self.avg_reward = 0.0
-        self.max_reward = 0.0
-        self.std_reward = 0.0
+        #self.avg_reward = 0.0
+        #self.max_reward = 0.0
+        #self.std_reward = 0.0
 
         self.avg_q = 0.0
         self.max_q = 0.0
         self.std_q = 0.0
         
         self.eval_reward = 0.0
+
+    def update_averages(self,  max_q_values, q_values):
+        """
+        Update the averages
+
+        Args:
+            rewards: deque
+            max_q_values: deque
+            q_values: deque
+            scores_eval: list
+        """
+        self.max_q      = np.mean(max_q_values)
+        self.avg_q      = np.mean(q_values)
+        self.std_q      = np.sqrt(np.var(q_values) / len(q_values))
 
     def scalar_actions(self, a):
         a_sc=[]
@@ -134,9 +152,12 @@ class Linear(DQN):
 
     def train(self, exp_schedule, lr_schedule, batch_dir):  
         t=0
+        max_q_values = deque(maxlen=1000)
+        q_values = deque(maxlen=10000)
+        self.init_averages()
 
         print("Loading Data")
-        s, a, r, sp = map(np.array, self.agent.ingest_batch(batch_dir))
+        s, a, r, sp, dm = map(np.array, self.agent.ingest_batch(batch_dir))
         print("Num Training Examples: " + str(len(s)))
         a_sc = self.scalar_actions(a)
 
@@ -145,17 +166,27 @@ class Linear(DQN):
             
             #experience replay here
             idxs = np.random.randint(0, len(s)-1, self.config.batch_size)
-            batch = s[idxs], a_sc[idxs], r[idxs], sp[idxs]
-            # batch = s, a_sc, r, sp
-            
+            batch = s[idxs], a_sc[idxs], r[idxs], sp[idxs], dm[idxs]
+
+            for state in s[idxs]:
+                best_action, q_values = self.get_best_action(state)
+                action                = exp_schedule.get_action(best_action)
+
+                # store q values
+                max_q_values.append(max(q_values))
+                q_values += list(q_values)
+
             loss, grad = self.train_step(t, lr_schedule.epsilon, batch)
             t+=1
             if t%self.config.log_freq==0:
                 print("Iteration: %d" % t)
-                print("Loss: %f" % loss)
-                print("Grad: %f" % grad)
+                self.update_averages(max_q_values, q_values)
+                print("Max q: %f" % self.max_q)
+                print("Avg q: %f" % self.avg_q)
+                print("Std q: %f" % self.std_q)
         print("Training Done")
-        self.save()
+
+        self.save(t)
 
     #removed inequality on schedule
     def train_step(self, t, lr, batch):
@@ -170,11 +201,21 @@ class Linear(DQN):
             
         # occasionaly save the weights
         if (t % self.config.saving_freq == 0):
-            self.save()
+            print("saving")
+            self.save(t)
 
         return loss, grad
 
     #not necessary if we don't care about eval_reward
+
+    def save(self, t):
+        """
+        Saves session
+        """
+        if not os.path.exists(self.config.model_output):
+            os.makedirs(self.config.model_output)
+
+        self.saver.save(self.sess, self.config.model_output+"."+str(t)+"/")
 
     def evaluate(self, env=None, num_episodes=None):
         pass
@@ -224,7 +265,7 @@ class Linear(DQN):
         self.a = tf.placeholder(tf.int32, (None))
         self.r = tf.placeholder(tf.float32, (None))
         self.sp = tf.placeholder(tf.uint8, (None, nchannels, s_w, s_h))
-        # self.done_mask = tf.placeholder(tf.bool, (None))
+        self.done_mask = tf.placeholder(tf.bool, (None))
         self.lr = tf.placeholder(tf.float32)
         ##############################################################
         ######################## END YOUR CODE #######################
@@ -263,16 +304,18 @@ class Linear(DQN):
         ################ YOUR CODE HERE - 2-3 lines ################## 
         
         with tf.variable_scope(scope, reuse=reuse):
-            # out = tf.layers.flatten(state)
-            # for _ in range(self.config.num_layers):
-            #     out = tf.layers.dense(out, self.config.hidden_size, activation=tf.nn.relu)
-            # out = tf.layers.dense(out, num_actions)
-            out = tf.layers.conv2d(state, filters=32, kernel_size=4, strides=4, padding="same", activation=tf.nn.relu)
-            out = tf.layers.conv2d(out, filters=64, kernel_size=4, strides=2, padding="same", activation=tf.nn.relu)
-            out = tf.layers.conv2d(out, filters=64, kernel_size=3, strides=1, padding="same", activation=tf.nn.relu)
+            out = tf.layers.conv2d(state, filters=16, kernel_size=1, strides=1, padding="same", activation=tf.nn.relu)
             out = tf.layers.flatten(out)
-            out = tf.layers.dense(out, 512, activation=tf.nn.relu)
+            for _ in range(self.config.num_layers):
+                out = tf.layers.dense(out, self.config.hidden_size, activation=tf.nn.relu)
             out = tf.layers.dense(out, num_actions)
+
+            #out = tf.layers.conv2d(state, filters=32, kernel_size=2, strides=1, padding="same", activation=tf.nn.relu)
+            #out = tf.layers.conv2d(out, filters=64, kernel_size=3, strides=1, padding="same", activation=tf.nn.relu)
+            #out = tf.layers.conv2d(out, filters=64, kernel_size=4, strides=1, padding="same", activation=tf.nn.relu)
+            #out = tf.layers.flatten(out)
+            #out = tf.layers.dense(out, 1024, activation=tf.nn.relu)
+            #out = tf.layers.dense(out, num_actions)
         ##############################################################
         ######################## END YOUR CODE #######################
 
@@ -365,7 +408,7 @@ class Linear(DQN):
         """
         ##############################################################
         ##################### YOUR CODE HERE - 4-5 lines #############
-        q_samp = self.r+self.config.gamma*tf.reduce_max(target_q, axis=1)#*(1-tf.cast(self.done_mask, tf.float32))
+        q_samp = self.r+self.config.gamma*tf.reduce_max(target_q, axis=1)*(1-tf.cast(self.done_mask, tf.float32))
 
         update_locs = tf.one_hot(self.a, num_actions)
         # update_locs = tf.Print(update_locs, [tf.shape(self.a)])
@@ -410,7 +453,7 @@ class Linear(DQN):
         grads_and_vars = opt.compute_gradients(self.loss, tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=scope))
         # grads_and_vars=tf.Print(grads_and_vars, [grads_and_vars], "grads and vars: ")
         if self.config.grad_clip:
-            grads_and_vars = [ (tf.clip_by_norm(gv[0], self.config.clip_val), gv[1])for gv in grads_and_vars]
+            grads_and_vars = [ (tf.clip_by_norm(gv[0], self.config.clip_val), gv[1]) for gv in grads_and_vars]
         self.train_op = opt.apply_gradients(grads_and_vars)
         self.grad_norm = tf.global_norm([gv[0] for gv in grads_and_vars])
         ##############################################################
@@ -432,5 +475,5 @@ if __name__ == '__main__':
             config.lr_nsteps)
 
     model = Linear(env, config)
-    data_dir = "../2018-TowerDefence/starter-pack/tower-defence-matches"
+    data_dir = "../2018-TowerDefence/starter-pack-ref/tower-defence-matches"
     model.run(exp_schedule, lr_schedule, data_dir)
