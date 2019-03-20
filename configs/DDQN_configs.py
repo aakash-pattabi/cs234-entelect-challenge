@@ -7,7 +7,7 @@ class config():
     high             = 255.
 
     # output config
-    output_path  = "results/DQN_target_exp-rep_binary-reward_linear_new-state_done-mask/"
+    output_path  = "results/DDQN_target_exp-rep_score-reward_linear_new-state_done-mask/"
     model_output = output_path + "model.weights"
     log_path     = output_path + "log.txt"
     plot_output  = output_path + "scores.png"

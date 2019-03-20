@@ -7,7 +7,7 @@ class config():
     high             = 255.
 
     # output config
-    output_path  = "results/DQN_target_exp-rep_binary-reward_linear_new-state_done-mask/"
+    output_path  = "results/DDQN_target_exp-rep_score-reward_linear_new-state_done-mask/"
     model_output = output_path + "model.weights"
     log_path     = output_path + "log.txt"
     plot_output  = output_path + "scores.png"
@@ -38,5 +38,5 @@ class config():
     # learning_start     = 200
 
     state_shape = (16, 8, 4)
-    num_layers         = 3
+    num_layers         = 1
     hidden_size        = 1024
